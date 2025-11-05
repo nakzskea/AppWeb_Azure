@@ -1,3 +1,4 @@
+// --- FICHIER: app/account/page.tsx ---
 "use client"
 
 import { useEffect, useState } from "react"
@@ -6,34 +7,89 @@ import Link from "next/link"
 import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getStoredUser, clearUser } from "@/lib/auth"
-import { mockOrders } from "@/lib/mock-data"
 import { LogOut, Package, UserIcon, CreditCard } from "lucide-react"
+
+// MODIFICATION: Interface Vente alignée sur la BDD
+// Bien que la table Vente stocke des lignes individuelles, cette interface
+// représente une "commande" agrégée pour l'affichage.
+interface Vente {
+  id_vente: number | string // Correspond à id_vente
+  date_vente: string // Correspond à date_vente
+  total: number // Champ dérivé (total de la commande)
+  status: "delivered" | "pending" // Champ dérivé (état de la commande)
+}
+
+// MODIFICATION: Interface Utilisateur alignée sur la BDD
+interface Utilisateur {
+  id_user: number | string // Correspond à id_user
+  prenom: string // Correspond à prenom
+  nom: string // Correspond à nom
+  email: string
+}
 
 export default function AccountPage() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
-  const [userOrders, setUserOrders] = useState<any[]>([])
+  // Utilisation des nouvelles interfaces
+  const [user, setUser] = useState<Utilisateur | null>(null)
+  const [userOrders, setUserOrders] = useState<Vente[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const storedUser = getStoredUser()
-    if (!storedUser) {
-      router.push("/login")
-      return
-    }
-    setUser(storedUser)
+    const checkAuth = async () => {
+      try {
+        // ZONE DE LIAISON BDD: Récupérer l'utilisateur courant
+        /*
+        const currentUser = await fetchCurrentUser(); // GET /api/auth/me
+        if (!currentUser) {
+            router.push("/login");
+            return;
+        }
+        setUser(currentUser);
+        */
 
-    // Mock: get user's orders
-    const orders = mockOrders.filter((order) => order.userId.toString() === storedUser.id)
-    setUserOrders(orders)
+        // ZONE DE LIAISON BDD: Récupérer l'historique des commandes (Ventes)
+        // Les Ventes devront être agrégées par "commande" si votre backend les renvoie ligne par ligne.
+        // GET /api/ventes?id_user={id_user}
+        // const orders = await fetchUserVentes(currentUser.id_user); 
+        // setUserOrders(orders);
+        
+        // Placeholder implementation
+        // setUser({ id_user: 1, prenom: "Alice", nom: "Dupont", email: "alice@example.com" });
+        // setUserOrders([
+        //   { id_vente: "V-001", date_vente: "2024-10-15", total: 349.97, status: "delivered" },
+        //   { id_vente: "V-002", date_vente: "2024-09-08", total: 89.99, status: "pending" },
+        // ]);
+        
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    checkAuth()
   }, [router])
 
   const handleLogout = () => {
-    clearUser()
+    // ZONE DE LIAISON BDD: Appeler l'API de déconnexion
+    // N'oubliez pas d'importer et d'appeler `logoutUser()` si vous l'avez implémenté dans auth.ts
+    // await logoutUser(); // POST /api/auth/logout
     router.push("/")
   }
 
-  if (!user) return null
+  if (loading) return null
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="max-w-4xl mx-auto px-4 py-16 text-center">
+          <p className="text-muted-foreground mb-4">Vous n'êtes pas connecté.</p>
+          <Button asChild>
+            <Link href="/login">Aller à la connexion</Link>
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -58,9 +114,10 @@ export default function AccountPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* MODIFICATION: Affichage du prénom et du nom */}
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Nom</p>
-                <p className="font-semibold text-foreground">{user.name}</p>
+                <p className="text-sm text-muted-foreground mb-1">Prénom Nom</p>
+                <p className="font-semibold text-foreground">{user.prenom} {user.nom}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Email</p>
@@ -123,15 +180,18 @@ export default function AccountPage() {
               </div>
             ) : (
               <div className="space-y-4">
+                {/* ZONE DE LIAISON BDD: Itération sur l'historique des commandes */}
                 {userOrders.map((order) => (
                   <div
-                    key={order.id}
+                    key={order.id_vente} // Utilisation de id_vente comme clé
                     className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition"
                   >
                     <div className="flex-1">
-                      <h4 className="font-semibold text-foreground">{order.id}</h4>
+                      {/* Affichage de id_vente */}
+                      <h4 className="font-semibold text-foreground">Commande #{order.id_vente}</h4>
                       <p className="text-sm text-muted-foreground">
-                        {new Date(order.date).toLocaleDateString("fr-FR")}
+                        {/* Utilisation de date_vente */}
+                        {new Date(order.date_vente).toLocaleDateString("fr-FR")}
                       </p>
                     </div>
                     <div className="text-right">

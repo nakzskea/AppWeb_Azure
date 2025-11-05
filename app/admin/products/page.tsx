@@ -1,3 +1,4 @@
+// --- FICHIER: app/admin/products/page.tsx ---
 "use client"
 
 import { useEffect, useState } from "react"
@@ -6,24 +7,48 @@ import { AdminSidebar } from "@/components/admin-sidebar"
 import { AdminProductModal } from "@/components/admin-product-modal"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getStoredUser } from "@/lib/auth"
-import { mockProducts, type Product } from "@/lib/mock-data"
+// MODIFICATION: Import de isAdminUser
+import { getStoredUser, isAdminUser } from "@/lib/auth" 
+// MODIFICATION: Import du type Produit aligné BDD
+import type { Produit } from "@/lib/mock-data" 
 import { Plus, Edit2, Trash2, Package } from "lucide-react"
 
 export default function AdminProductsPage() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
-  const [products, setProducts] = useState<Product[]>(mockProducts)
+  // L'interface 'any' peut être remplacée par AuthUser | null si importé
+  const [user, setUser] = useState<any>(null) 
+  // MODIFICATION: Utilisation du type Produit[]
+  const [products, setProducts] = useState<Produit[]>([]) 
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<Product | undefined>()
+  // MODIFICATION: Utilisation du type Produit
+  const [selectedProduct, setSelectedProduct] = useState<Produit | undefined>() 
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const storedUser = getStoredUser()
-    if (!storedUser || storedUser.role !== "admin") {
+    // MODIFICATION: Vérification d'administration en utilisant isAdminUser et le flag 'admin' (0 ou 1)
+    if (!storedUser || !isAdminUser(storedUser)) { 
       router.push("/admin/login")
       return
     }
     setUser(storedUser)
+
+    // ZONE DE LIAISON BDD: Récupérer tous les produits depuis la BDD
+    // GET /api/admin/products pour charger la liste complète
+    // Chaque produit doit renvoyer les champs BDD: id_produits, nom_produit, id_categorie, prix, quantite (stock)
+
+    const fetchProducts = async () => {
+      try {
+        // const response = await fetch('/api/admin/products');
+        // const data: Produit[] = await response.json();
+        // setProducts(data);
+        setProducts([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProducts()
   }, [router])
 
   const handleAddProduct = () => {
@@ -31,25 +56,40 @@ export default function AdminProductsPage() {
     setIsModalOpen(true)
   }
 
-  const handleEditProduct = (product: Product) => {
+  // MODIFICATION: Utilisation du type Produit
+  const handleEditProduct = (product: Produit) => { 
     setSelectedProduct(product)
     setIsModalOpen(true)
   }
 
-  const handleSaveProduct = (product: Product) => {
+  // MODIFICATION: Utilisation du type Produit
+  const handleSaveProduct = async (product: Produit) => { 
+    // ZONE DE LIAISON BDD: Sauvegarder le produit dans la BDD
+    // Si modification: PUT /api/admin/products/{id_produits} avec les données de Produit
+    // Si création: POST /api/admin/products avec les données de Produit
+    // Mettre à jour la liste locale après succès
+
     if (selectedProduct) {
-      setProducts(products.map((p) => (p.id === selectedProduct.id ? product : p)))
+      // MODIFICATION: Utilisation de id_produits
+      setProducts(products.map((p) => (p.id_produits === selectedProduct.id_produits ? product : p))) 
     } else {
-      setProducts([...products, { ...product, id: Math.max(...products.map((p) => p.id), 0) + 1 }])
+      // MODIFICATION: Utilisation de id_produits pour l'ID fictif et les clés
+      setProducts([...products, { ...product, id_produits: Math.max(...products.map((p) => p.id_produits), 0) + 1 } as Produit]) 
     }
     setSelectedProduct(undefined)
   }
 
-  const handleDeleteProduct = (id: number) => {
-    setProducts(products.filter((p) => p.id !== id))
+  // MODIFICATION: Utilisation de id_produits
+  const handleDeleteProduct = async (id_produits: number) => { 
+    // ZONE DE LIAISON BDD: Supprimer le produit de la BDD
+    // DELETE /api/admin/products/{id_produits}
+    // Retirer le produit de la liste locale après succès
+
+    // MODIFICATION: Utilisation de id_produits
+    setProducts(products.filter((p) => p.id_produits !== id_produits)) 
   }
 
-  if (!user) return null
+  if (!user || loading) return null
 
   return (
     <div className="flex h-screen bg-background">
@@ -87,27 +127,36 @@ export default function AdminProductsPage() {
                     <thead>
                       <tr className="border-b border-border">
                         <th className="text-left py-3 px-4 font-semibold text-foreground">Nom</th>
-                        <th className="text-left py-3 px-4 font-semibold text-foreground">Catégorie</th>
+                        <th className="text-left py-3 px-4 font-semibold text-foreground">Catégorie ID</th> {/* Modification pour refléter l'ID BDD */}
                         <th className="text-left py-3 px-4 font-semibold text-foreground">Prix</th>
                         <th className="text-left py-3 px-4 font-semibold text-foreground">Stock</th>
                         <th className="text-right py-3 px-4 font-semibold text-foreground">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
+                      {/* ZONE DE LIAISON BDD: Itération sur la liste des produits */}
                       {products.map((product) => (
-                        <tr key={product.id} className="border-b border-border hover:bg-muted/50 transition">
-                          <td className="py-3 px-4 text-foreground font-medium">{product.name}</td>
-                          <td className="py-3 px-4 text-muted-foreground">{product.category}</td>
-                          <td className="py-3 px-4 font-bold text-primary">${product.price}</td>
+                        <tr 
+                          // MODIFICATION: Utilisation de id_produits comme clé
+                          key={product.id_produits} 
+                          className="border-b border-border hover:bg-muted/50 transition"
+                        >
+                          {/* MODIFICATION: Utilisation de nom_produit */}
+                          <td className="py-3 px-4 text-foreground font-medium">{product.nom_produit}</td> 
+                          {/* MODIFICATION: Utilisation de id_categorie */}
+                          <td className="py-3 px-4 text-muted-foreground">{product.id_categorie}</td> 
+                          {/* MODIFICATION: Utilisation de prix */}
+                          <td className="py-3 px-4 font-bold text-primary">${product.prix}</td> 
                           <td className="py-3 px-4">
                             <span
                               className={`px-3 py-1 rounded text-sm font-medium ${
-                                product.stock > 0
+                                // MODIFICATION: Utilisation de quantite (stock)
+                                product.quantite > 0
                                   ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
                                   : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
                               }`}
                             >
-                              {product.stock}
+                              {product.quantite} {/* MODIFICATION: Utilisation de quantite */}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right flex gap-2 justify-end">
@@ -123,7 +172,8 @@ export default function AdminProductsPage() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => handleDeleteProduct(product.id)}
+                              // MODIFICATION: Utilisation de id_produits
+                              onClick={() => handleDeleteProduct(product.id_produits)} 
                               className="gap-1"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -141,6 +191,7 @@ export default function AdminProductsPage() {
         </div>
       </main>
 
+      {/* MODIFICATION: selectedProduct est maintenant de type Produit */}
       <AdminProductModal
         product={selectedProduct}
         isOpen={isModalOpen}

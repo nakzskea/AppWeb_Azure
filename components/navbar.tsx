@@ -1,3 +1,4 @@
+// --- FICHIER: navbar.tsx ---
 "use client"
 
 import Link from "next/link"
@@ -9,7 +10,8 @@ import { useEffect, useState } from "react"
 
 export function Navbar() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  // L'interface 'any' devrait être remplacée par 'AuthUser | null'
+  const [user, setUser] = useState<any>(null) 
   const [cartCount, setCartCount] = useState(0)
 
   useEffect(() => {
@@ -17,7 +19,8 @@ export function Navbar() {
     setUser(storedUser)
 
     const updateCart = () => {
-      const cart = localStorage.getItem("innovtech_cart")
+      // NOTE: Le nom du localStorage pour le panier est correct si vous le gardez ainsi.
+      const cart = localStorage.getItem("innovtech_cart") 
       const items = cart ? JSON.parse(cart) : []
       setCartCount(items.length)
     }
@@ -28,6 +31,15 @@ export function Navbar() {
   }, [])
 
   const handleLogout = () => {
+    // ZONE DE LIAISON BDD: Appeler l'API de déconnexion (POST /api/auth/logout)
+    // AVANT de nettoyer le localStorage (assurez-vous d'importer et d'implémenter logoutUser).
+    // Exemple : 
+    // try {
+    //   await logoutUser(); 
+    // } catch (e) {
+    //   console.error("Logout failed on API, proceeding locally:", e);
+    // }
+
     clearUser()
     setUser(null)
     router.push("/")

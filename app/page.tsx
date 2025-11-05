@@ -1,3 +1,4 @@
+// --- FICHIER: app/page.tsx ---
 "use client"
 
 import { useState } from "react"
@@ -5,28 +6,42 @@ import Link from "next/link"
 import { Navbar } from "@/components/navbar"
 import { ProductCard } from "@/components/product-card"
 import { Button } from "@/components/ui/button"
-import { mockProducts, type Product } from "@/lib/mock-data"
+// MODIFICATION: Import du type Produit aligné BDD
+import type { Produit } from "@/lib/mock-data" 
 import { ArrowRight } from "lucide-react"
+
+// ZONE DE LIAISON BDD: Récupérer la liste des produits depuis la base de données
+// Utiliser une route API (ex: GET /api/produits) ou une Server Action pour charger les produits.
+// const products = await fetchProduits(); 
+// (Implémenter cette logique avec useEffect ou en Server Component)
 
 export default function Home() {
   const [notification, setNotification] = useState("")
+  // MODIFICATION: Utilisation du type Produit[]
+  const [products, setProducts] = useState<Produit[]>([]) 
+  // NOTE: Les produits doivent être chargés (via useEffect ou Server Component) pour que la liste s'affiche.
 
-  const handleAddToCart = (product: Product) => {
+  // MODIFICATION: Utilisation du type Produit
+  const handleAddToCart = (product: Produit) => { 
     const cart = localStorage.getItem("innovtech_cart")
     const items = cart ? JSON.parse(cart) : []
 
-    const existingItem = items.find((item: any) => item.id === product.id)
+    // MODIFICATION: Utilisation de id_produits pour la recherche
+    const existingItem = items.find((item: any) => item.id_produits === product.id_produits) 
+    
     if (existingItem) {
-      existingItem.quantity += 1
+      // MODIFICATION: Utilisation de quantite_achetee (défini dans ArticlePanier)
+      existingItem.quantite_achetee += 1 
     } else {
-      items.push({ ...product, quantity: 1 })
+      // MODIFICATION: Utilisation de quantite_achetee
+      items.push({ ...product, quantite_achetee: 1 }) 
     }
 
     localStorage.setItem("innovtech_cart", JSON.stringify(items))
-    setNotification(`${product.name} ajouté au panier`)
+    // MODIFICATION: Utilisation de nom_produit
+    setNotification(`${product.nom_produit} ajouté au panier`) 
     setTimeout(() => setNotification(""), 3000)
 
-    // Trigger storage event for navbar update
     window.dispatchEvent(new Event("storage"))
   }
 
@@ -40,8 +55,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* Hero Section */}
+      {/* Hero Section (Aucun changement nécessaire) */}
       <section className="bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
+        {/* ... (Contenu inchangé) ... */}
         <div className="max-w-7xl mx-auto px-4 py-16 sm:py-24">
           <div className="max-w-2xl">
             <h1 className="text-4xl sm:text-5xl font-bold text-foreground mb-4">
@@ -64,18 +80,30 @@ export default function Home() {
       <section id="products" className="max-w-7xl mx-auto px-4 py-16">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-foreground mb-2">Nos Produits</h2>
-          <p className="text-muted-foreground">{mockProducts.length} articles disponibles</p>
+          {/* ZONE DE LIAISON BDD: Afficher le nombre de produits provenant de la BDD */}
+          <p className="text-muted-foreground">{products.length} articles disponibles</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockProducts.map((product) => (
-            <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />
-          ))}
+          {/* ZONE DE LIAISON BDD: Itération sur la liste des produits depuis la BDD */}
+          {products.length === 0 ? (
+            <p className="col-span-full text-center text-muted-foreground">En attente de chargement des produits...</p>
+          ) : (
+            // MODIFICATION: Utilisation de id_produits comme clé
+            products.map((product) => (
+              <ProductCard 
+                key={product.id_produits} 
+                product={product} 
+                onAddToCart={handleAddToCart} 
+              />
+            ))
+          )}
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Footer (Aucun changement nécessaire) */}
       <footer className="border-t border-border bg-card mt-16">
+        {/* ... (Contenu inchangé) ... */}
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-8">
             <div>

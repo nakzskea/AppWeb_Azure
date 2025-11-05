@@ -1,3 +1,4 @@
+// --- FICHIER: app/cart/page.tsx ---
 "use client"
 
 import { useState, useEffect } from "react"
@@ -7,12 +8,13 @@ import { Navbar } from "@/components/navbar"
 import { CartItemRow } from "@/components/cart-item-row"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import type { CartItem } from "@/lib/mock-data"
-import { processOrder } from "@/lib/order-actions"
+// Importation du type aligné sur la BDD : ArticlePanier
+import type { ArticlePanier } from "@/lib/mock-data" 
 import { ArrowLeft, ShoppingBag } from "lucide-react"
 
 export default function CartPage() {
-  const [cartItems, setCartItems] = useState<CartItem[]>([])
+  // Utilisation du type ArticlePanier
+  const [cartItems, setCartItems] = useState<ArticlePanier[]>([]) 
   const [mounted, setMounted] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const router = useRouter()
@@ -20,54 +22,84 @@ export default function CartPage() {
   useEffect(() => {
     setMounted(true)
     const cart = localStorage.getItem("innovtech_cart")
+    // Note : L'initialisation du localStorage suppose que les données stockées
+    // respectent déjà la structure ArticlePanier (id_produits, prix, quantite_achetee, etc.).
     setCartItems(cart ? JSON.parse(cart) : [])
   }, [])
 
-  const handleQuantityChange = (id: number, newQuantity: number) => {
+  // Adaptation à id_produits et quantite_achetee
+  const handleQuantityChange = (id_produits: number, newQuantity: number) => { 
     if (newQuantity <= 0) {
-      handleRemoveItem(id)
+      handleRemoveItem(id_produits)
       return
     }
 
-    const updated = cartItems.map((item) => (item.id === id ? { ...item, quantity: newQuantity } : item))
+    const updated = cartItems.map((item) => 
+      // Remplacement de item.id par item.id_produits et item.quantity par item.quantite_achetee
+      (item.id_produits === id_produits ? { ...item, quantite_achetee: newQuantity } : item)
+    )
     setCartItems(updated)
     localStorage.setItem("innovtech_cart", JSON.stringify(updated))
     window.dispatchEvent(new Event("storage"))
   }
 
-  const handleRemoveItem = (id: number) => {
-    const updated = cartItems.filter((item) => item.id !== id)
+  // Adaptation à id_produits
+  const handleRemoveItem = (id_produits: number) => { 
+    const updated = cartItems.filter((item) => item.id_produits !== id_produits)
     setCartItems(updated)
     localStorage.setItem("innovtech_cart", JSON.stringify(updated))
     window.dispatchEvent(new Event("storage"))
   }
 
   const handlePlaceOrder = async () => {
+    // Il faudrait d'abord vérifier que l'utilisateur est connecté (non implémenté ici)
     setIsProcessing(true)
     try {
-      const orderData = cartItems.map((item) => ({
-        id: item.id,
-        quantity: item.quantity,
-        price: item.price,
-      }))
+      
+      // ZONE CRUCIALE DE LIAISON BDD: Appeler l'API pour créer la commande (table Vente)
+      // La fonction processOrder dans order-actions.ts devrait être appelée ici.
+      
+      const orderData = cartItems.map(item => ({
+          id_produits: item.id_produits,
+          quantite: item.quantite_achetee, // Utiliser la quantité achetée
+          prix: item.prix // Envoyer le prix unitaire pour référence/vérification backend
+      }));
 
-      const result = await processOrder(orderData)
-
-      if (result.success) {
-        // Clear cart after successful order
-        localStorage.removeItem("innovtech_cart")
-        window.dispatchEvent(new Event("storage"))
-        // Redirect to confirmation page
-        router.push("/commande-confirmee")
+      /*
+      // DÉCOMMENTER ET IMPLÉMENTER LORSQUE LE BACKEND/API SERA PRÊT
+      const response = await fetch('/api/ventes', { // Utiliser un nom de route BDD (ventes)
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // L'objet envoyé doit contenir les infos nécessaires pour créer les lignes de Vente
+        body: JSON.stringify({ items: orderData, total_a_verifier: total }) 
+      });
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        localStorage.removeItem("innovtech_cart");
+        window.dispatchEvent(new Event("storage"));
+        router.push("/commande-confirmee");
+      } else {
+         throw new Error(result.error || "Échec de la commande");
       }
+      */
+      
+      // Simulation temporaire du succès (à supprimer après l'intégration BDD)
+      localStorage.removeItem("innovtech_cart")
+      window.dispatchEvent(new Event("storage"))
+      router.push("/commande-confirmee")
+      // Fin de la simulation
+
     } catch (error) {
       console.error("Error placing order:", error)
+      // Afficher un message d'erreur à l'utilisateur si nécessaire
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  // Utilisation des champs prix et quantite_achetee pour le calcul
+  const subtotal = cartItems.reduce((sum, item) => sum + item.prix * item.quantite_achetee, 0)
   const tax = subtotal * 0.1
   const total = subtotal + tax
 
@@ -104,7 +136,8 @@ export default function CartPage() {
                   <div className="space-y-0 divide-y divide-border">
                     {cartItems.map((item) => (
                       <CartItemRow
-                        key={item.id}
+                        // Utilise l'id_produits comme clé unique
+                        key={item.id_produits} 
                         item={item}
                         onQuantityChange={handleQuantityChange}
                         onRemove={handleRemoveItem}

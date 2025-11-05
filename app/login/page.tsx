@@ -1,3 +1,4 @@
+// --- FICHIER: app/login/page.tsx ---
 "use client"
 
 import type React from "react"
@@ -10,18 +11,22 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { storeUser } from "@/lib/auth"
 import { AlertCircle } from "lucide-react"
+// Assurez-vous d'importer storeUser, validateUser, et registerUser une fois implémentés dans auth.ts
+// import { storeUser, validateUser, registerUser } from "@/lib/auth" 
 
 export default function LoginPage() {
   const router = useRouter()
   const [isLogin, setIsLogin] = useState(true)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  
+  // MODIFICATION: Remplacement de 'password' par 'mdp' et de 'name' par 'prenom' et 'nom'
   const [formData, setFormData] = useState({
     email: "",
-    password: "",
-    name: "",
+    mdp: "",
+    prenom: "",
+    nom: "",
   })
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,24 +41,56 @@ export default function LoginPage() {
     setError("")
     setLoading(true)
 
-    // Simple validation
-    if (!formData.email || !formData.password) {
-      setError("Tous les champs sont requis")
+    // Validation alignée sur les nouveaux champs
+    if (!formData.email || !formData.mdp) {
+      setError("L'email et le mot de passe sont requis.")
+      setLoading(false)
+      return
+    }
+    
+    if (!isLogin && (!formData.prenom || !formData.nom)) {
+      setError("Le prénom et le nom sont requis pour l'inscription.")
       setLoading(false)
       return
     }
 
-    // Mock auth - in production, this would call an API
-    const user = {
-      id: Date.now().toString(),
-      email: formData.email,
-      name: formData.name || formData.email.split("@")[0],
-      role: "user" as const,
-    }
+    // ZONE DE LIAISON BDD: Appeler l'API d'authentification 
+    try {
+      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
+      let bodyData: any = {
+        email: formData.email,
+        mdp: formData.mdp, // Utilisation du champ 'mdp'
+      };
 
-    storeUser(user)
-    setLoading(false)
-    router.push("/account")
+      if (!isLogin) {
+        // Ajout de 'prenom' et 'nom' pour l'inscription
+        bodyData = { ...bodyData, prenom: formData.prenom, nom: formData.nom };
+      }
+
+      /*
+      // DÉCOMMENTER ET IMPLÉMENTER LORSQUE LE BACKEND SERA PRÊT
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyData)
+      });
+      const data = await response.json();
+      
+      if (response.ok && data.user) {
+         // storeUser doit stocker l'objet AuthUser renvoyé
+         // storeUser(data.user);
+         // router.push("/account");
+      } else {
+         setError(data.error || "Échec de l'authentification.");
+      }
+      */
+      
+      setError("Authentification non configurée - À intégrer avec la BDD")
+    } catch (e) {
+      setError("Une erreur de réseau s'est produite.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -81,9 +118,16 @@ export default function LoginPage() {
               )}
 
               {!isLogin && (
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nom</Label>
-                  <Input id="name" name="name" placeholder="Votre nom" value={formData.name} onChange={handleChange} />
+                // MODIFICATION: Ajout des champs 'Prénom' et 'Nom'
+                <div className="flex gap-4">
+                    <div className="space-y-2 flex-1">
+                      <Label htmlFor="prenom">Prénom</Label>
+                      <Input id="prenom" name="prenom" placeholder="Votre prénom" value={formData.prenom} onChange={handleChange} />
+                    </div>
+                    <div className="space-y-2 flex-1">
+                      <Label htmlFor="nom">Nom</Label>
+                      <Input id="nom" name="nom" placeholder="Votre nom" value={formData.nom} onChange={handleChange} />
+                    </div>
                 </div>
               )}
 
@@ -100,13 +144,14 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Mot de passe</Label>
+                <Label htmlFor="mdp">Mot de passe</Label>
                 <Input
-                  id="password"
-                  name="password"
+                  // MODIFICATION: Remplacement de name="password" par name="mdp"
+                  id="mdp"
+                  name="mdp"
                   type="password"
                   placeholder="••••••••"
-                  value={formData.password}
+                  value={formData.mdp}
                   onChange={handleChange}
                 />
               </div>
@@ -122,7 +167,8 @@ export default function LoginPage() {
                 onClick={() => {
                   setIsLogin(!isLogin)
                   setError("")
-                  setFormData({ email: "", password: "", name: "" })
+                  // Réinitialisation des champs
+                  setFormData({ email: "", mdp: "", prenom: "", nom: "" }) 
                 }}
                 className="text-sm text-primary hover:underline"
               >

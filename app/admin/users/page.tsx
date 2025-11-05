@@ -1,3 +1,4 @@
+// --- FICHIER: app/admin/users/page.tsx ---
 "use client"
 
 import { useEffect, useState } from "react"
@@ -5,32 +6,68 @@ import { useRouter } from "next/navigation"
 import { AdminSidebar } from "@/components/admin-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getStoredUser } from "@/lib/auth"
-import { mockUsers, type User } from "@/lib/mock-data"
+// MODIFICATION: Import de isAdminUser et du type de base Utilisateur
+import { getStoredUser, isAdminUser } from "@/lib/auth" 
+import type { Utilisateur } from "@/lib/mock-data" 
 import { Shield, Users, ToggleRight, ToggleLeft } from "lucide-react"
+
+// MODIFICATION: Interface étendue pour les champs requis par l'UI
+// NOTE: Votre BDD (table Utilisateurs) ne contient PAS 'joinedDate', 'orders', ou 'status'.
+// L'API backend (GET /api/admin/users) DOIT calculer ces champs (par jointure/comptage)
+// ou vous devez ajouter ces colonnes à votre table 'Utilisateurs'.
+interface ExtendedUtilisateur extends Utilisateur {
+  joinedDate: string; // Doit être fourni par le backend (ou ajouté à la BDD)
+  orders: number; // Doit être calculé par le backend (COUNT des Ventes)
+  status: "active" | "blocked"; // Doit être fourni par le backend (ex: un champ BDD 'is_blocked')
+}
 
 export default function AdminUsersPage() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
-  const [users, setUsers] = useState<User[]>(mockUsers)
+  // L'interface 'any' peut être remplacée par AuthUser | null si importé
+  const [user, setUser] = useState<any>(null) 
+  // MODIFICATION: Utilisation du type étendu
+  const [users, setUsers] = useState<ExtendedUtilisateur[]>([]) 
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const storedUser = getStoredUser()
-    if (!storedUser || storedUser.role !== "admin") {
+    // MODIFICATION: Vérification d'administration en utilisant isAdminUser
+    if (!storedUser || !isAdminUser(storedUser)) { 
       router.push("/admin/login")
       return
     }
     setUser(storedUser)
+
+    // ZONE DE LIAISON BDD: Récupérer la liste des utilisateurs depuis la BDD
+    // GET /api/admin/users
+    // Doit renvoyer les champs ExtendedUtilisateur (incluant les champs dérivés)
+    const fetchUsers = async () => {
+      try {
+        // const response = await fetch('/api/admin/users');
+        // const data: ExtendedUtilisateur[] = await response.json();
+        // setUsers(data);
+        setUsers([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUsers()
   }, [router])
 
-  const handleToggleStatus = (userId: number) => {
-    setUsers(users.map((u) => (u.id === userId ? { ...u, status: u.status === "active" ? "blocked" : "active" } : u)))
+  // MODIFICATION: Utilisation de id_user
+  const handleToggleStatus = async (id_user: number) => { 
+    // ZONE DE LIAISON BDD: Mettre à jour le statut de l'utilisateur
+    // PATCH /api/admin/users/{id_user}/status
+    // (Nécessite un champ 'status' ou 'is_blocked' dans la BDD)
+
+    setUsers(users.map((u) => (u.id_user === id_user ? { ...u, status: u.status === "active" ? "blocked" : "active" } : u)))
   }
 
   const activeUsers = users.filter((u) => u.status === "active").length
   const blockedUsers = users.filter((u) => u.status === "blocked").length
 
-  if (!user) return null
+  if (!user || loading) return null
 
   return (
     <div className="flex h-screen bg-background">
@@ -43,8 +80,9 @@ export default function AdminUsersPage() {
             <p className="text-muted-foreground mt-1">{users.length} utilisateurs au total</p>
           </div>
 
-          {/* Stats */}
+          {/* Stats (Aucun changement nécessaire) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {/* ... (Contenu inchangé) ... */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -95,7 +133,8 @@ export default function AdminUsersPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-border">
-                        <th className="text-left py-3 px-4 font-semibold text-foreground">Nom</th>
+                        {/* MODIFICATION: Utilisation de "Prénom / Nom" */}
+                        <th className="text-left py-3 px-4 font-semibold text-foreground">Prénom / Nom</th> 
                         <th className="text-left py-3 px-4 font-semibold text-foreground">Email</th>
                         <th className="text-left py-3 px-4 font-semibold text-foreground">Rejoints</th>
                         <th className="text-left py-3 px-4 font-semibold text-foreground">Commandes</th>
@@ -104,16 +143,22 @@ export default function AdminUsersPage() {
                       </tr>
                     </thead>
                     <tbody>
+                      {/* ZONE DE LIAISON BDD: Itération sur la liste des utilisateurs */}
                       {users.map((user) => (
-                        <tr key={user.id} className="border-b border-border hover:bg-muted/50 transition">
-                          <td className="py-3 px-4 text-foreground font-medium">{user.name}</td>
+                        // MODIFICATION: Utilisation de id_user
+                        <tr key={user.id_user} className="border-b border-border hover:bg-muted/50 transition"> 
+                          {/* MODIFICATION: Utilisation de prenom et nom */}
+                          <td className="py-3 px-4 text-foreground font-medium">{user.prenom} {user.nom}</td> 
                           <td className="py-3 px-4 text-muted-foreground">{user.email}</td>
                           <td className="py-3 px-4 text-muted-foreground text-sm">
-                            {new Date(user.joinedDate).toLocaleDateString("fr-FR")}
+                            {/* Utilisation du champ 'joinedDate' étendu */}
+                            {new Date(user.joinedDate).toLocaleDateString("fr-FR")} 
                           </td>
-                          <td className="py-3 px-4 text-foreground font-medium">{user.orders}</td>
+                          {/* Utilisation du champ 'orders' étendu */}
+                          <td className="py-3 px-4 text-foreground font-medium">{user.orders}</td> 
                           <td className="py-3 px-4">
-                            <span
+                            {/* Utilisation du champ 'status' étendu */}
+                            <span 
                               className={`px-3 py-1 rounded text-sm font-medium ${
                                 user.status === "active"
                                   ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
@@ -127,7 +172,8 @@ export default function AdminUsersPage() {
                             <Button
                               size="sm"
                               variant={user.status === "active" ? "destructive" : "default"}
-                              onClick={() => handleToggleStatus(user.id)}
+                              // MODIFICATION: Utilisation de id_user
+                              onClick={() => handleToggleStatus(user.id_user)} 
                               className="gap-1"
                             >
                               {user.status === "active" ? (
