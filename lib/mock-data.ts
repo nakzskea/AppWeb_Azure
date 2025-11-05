@@ -1,4 +1,3 @@
-// Mock data for products, users, and orders
 export const mockProducts = [
   {
     id: 1,

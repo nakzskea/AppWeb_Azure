@@ -1,4 +1,3 @@
-// Simple client-side auth system for demonstration
 export interface AuthUser {
   id: string
   email: string
