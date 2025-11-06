@@ -2,7 +2,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -12,8 +11,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertCircle } from "lucide-react"
-// Assurez-vous d'importer storeUser, validateUser, et registerUser une fois implémentés dans auth.ts
-// import { storeUser, validateUser, registerUser } from "@/lib/auth" 
+
+// MODIFICATION: Import de storeUser pour sauvegarder l'utilisateur après le login
+import { storeUser } from "@/lib/auth" 
 
 export default function LoginPage() {
   const router = useRouter()
@@ -21,7 +21,7 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   
-  // MODIFICATION: Remplacement de 'password' par 'mdp' et de 'name' par 'prenom' et 'nom'
+  // Les champs sont alignés sur la BDD (mdp, prenom, nom)
   const [formData, setFormData] = useState({
     email: "",
     mdp: "",
@@ -41,7 +41,7 @@ export default function LoginPage() {
     setError("")
     setLoading(true)
 
-    // Validation alignée sur les nouveaux champs
+    // Validation des champs
     if (!formData.email || !formData.mdp) {
       setError("L'email et le mot de passe sont requis.")
       setLoading(false)
@@ -54,40 +54,48 @@ export default function LoginPage() {
       return
     }
 
-    // ZONE DE LIAISON BDD: Appeler l'API d'authentification 
+    // --- ZONE DE LIAISON BDD: APPEL À L'API ---
     try {
+      // Détermine quel endpoint appeler (login ou signup)
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
+      
       let bodyData: any = {
         email: formData.email,
-        mdp: formData.mdp, // Utilisation du champ 'mdp'
+        mdp: formData.mdp,
       };
 
       if (!isLogin) {
-        // Ajout de 'prenom' et 'nom' pour l'inscription
         bodyData = { ...bodyData, prenom: formData.prenom, nom: formData.nom };
       }
 
-      /*
-      // DÉCOMMENTER ET IMPLÉMENTER LORSQUE LE BACKEND SERA PRÊT
+      // MODIFICATION: Appel 'fetch' implémenté
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bodyData)
       });
+      
       const data = await response.json();
       
-      if (response.ok && data.user) {
-         // storeUser doit stocker l'objet AuthUser renvoyé
-         // storeUser(data.user);
-         // router.push("/account");
+      if (response.ok) {
+         if (isLogin) {
+            // Connexion réussie
+            if (!data.user) throw new Error("Réponse API invalide, utilisateur manquant.");
+            storeUser(data.user); // Stocke l'utilisateur dans le localStorage
+            router.push("/"); // Redirige vers l'accueil (ou /admin si admin)
+         } else {
+            // Inscription réussie
+            setError("Compte créé avec succès ! Vous pouvez maintenant vous connecter.");
+            setIsLogin(true); // Bascule vers l'écran de connexion
+         }
       } else {
-         setError(data.error || "Échec de l'authentification.");
+         // Gérer les erreurs de l'API (ex: 401, 409)
+         setError(data.error || "Échec de l'opération.");
       }
-      */
       
-      setError("Authentification non configurée - À intégrer avec la BDD")
     } catch (e) {
-      setError("Une erreur de réseau s'est produite.")
+      console.error("Erreur lors de la soumission:", e);
+      setError("Une erreur de réseau s'est produite.");
     } finally {
       setLoading(false)
     }
@@ -111,14 +119,17 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               {error && (
-                <div className="flex gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-                  <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-destructive">{error}</p>
+                <div className={`flex gap-2 p-3 rounded-lg ${
+                  error.includes("succès") 
+                    ? "bg-green-100 dark:bg-green-950 border-green-200" // Style succès
+                    : "bg-destructive/10 border-destructive/20" // Style erreur
+                }`}>
+                  <AlertCircle className={`w-5 h-5 ${error.includes("succès") ? "text-green-600" : "text-destructive"} flex-shrink-0 mt-0.5`} />
+                  <p className={`text-sm ${error.includes("succès") ? "text-green-700 dark:text-green-300" : "text-destructive"}`}>{error}</p>
                 </div>
               )}
 
               {!isLogin && (
-                // MODIFICATION: Ajout des champs 'Prénom' et 'Nom'
                 <div className="flex gap-4">
                     <div className="space-y-2 flex-1">
                       <Label htmlFor="prenom">Prénom</Label>
@@ -146,7 +157,6 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <Label htmlFor="mdp">Mot de passe</Label>
                 <Input
-                  // MODIFICATION: Remplacement de name="password" par name="mdp"
                   id="mdp"
                   name="mdp"
                   type="password"
@@ -167,7 +177,6 @@ export default function LoginPage() {
                 onClick={() => {
                   setIsLogin(!isLogin)
                   setError("")
-                  // Réinitialisation des champs
                   setFormData({ email: "", mdp: "", prenom: "", nom: "" }) 
                 }}
                 className="text-sm text-primary hover:underline"
