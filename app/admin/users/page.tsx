@@ -6,66 +6,142 @@ import { useRouter } from "next/navigation"
 import { AdminSidebar } from "@/components/admin-sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-// MODIFICATION: Import de isAdminUser et du type de base Utilisateur
-import { getStoredUser, isAdminUser } from "@/lib/auth" 
-import type { Utilisateur } from "@/lib/mock-data" 
-import { Shield, Users, ToggleRight, ToggleLeft } from "lucide-react"
+import { getStoredUser, isAdminUser } from "@/lib/auth"
+import type { Utilisateur } from "@/lib/mock-data"
+import { Shield, Users, Edit, Trash2 } from "lucide-react"
 
-// MODIFICATION: Interface étendue pour les champs requis par l'UI
-// NOTE: Votre BDD (table Utilisateurs) ne contient PAS 'joinedDate', 'orders', ou 'status'.
-// L'API backend (GET /api/admin/users) DOIT calculer ces champs (par jointure/comptage)
-// ou vous devez ajouter ces colonnes à votre table 'Utilisateurs'.
-interface ExtendedUtilisateur extends Utilisateur {
-  joinedDate: string; // Doit être fourni par le backend (ou ajouté à la BDD)
-  orders: number; // Doit être calculé par le backend (COUNT des Ventes)
-  status: "active" | "blocked"; // Doit être fourni par le backend (ex: un champ BDD 'is_blocked')
-}
+// --- MODIFICATION: Ajout de composants pour le Modal ---
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+// ---------------------------------------------------
+
+type BasicUtilisateur = Pick<Utilisateur, "id_user" | "email" | "prenom" | "nom" | "admin">;
+
+// --- MODIFICATION: Type pour le formulaire du Modal ---
+type UserFormData = Omit<BasicUtilisateur, "id_user">;
 
 export default function AdminUsersPage() {
   const router = useRouter()
-  // L'interface 'any' peut être remplacée par AuthUser | null si importé
-  const [user, setUser] = useState<any>(null) 
-  // MODIFICATION: Utilisation du type étendu
-  const [users, setUsers] = useState<ExtendedUtilisateur[]>([]) 
+  const [user, setUser] = useState<any>(null)
+  const [users, setUsers] = useState<BasicUtilisateur[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("") // Pour afficher les erreurs API
+
+  // --- État pour le Modal de modification ---
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<BasicUtilisateur | undefined>()
+  const [formData, setFormData] = useState<UserFormData>({
+    prenom: "",
+    nom: "",
+    email: "",
+    admin: 0,
+  })
 
   useEffect(() => {
     const storedUser = getStoredUser()
-    // MODIFICATION: Vérification d'administration en utilisant isAdminUser
-    if (!storedUser || !isAdminUser(storedUser)) { 
-      router.push("/admin/login")
+    if (!storedUser || !isAdminUser(storedUser)) {
+      router.push("/login")
       return
     }
     setUser(storedUser)
 
-    // ZONE DE LIAISON BDD: Récupérer la liste des utilisateurs depuis la BDD
-    // GET /api/admin/users
-    // Doit renvoyer les champs ExtendedUtilisateur (incluant les champs dérivés)
     const fetchUsers = async () => {
       try {
-        // const response = await fetch('/api/admin/users');
-        // const data: ExtendedUtilisateur[] = await response.json();
-        // setUsers(data);
-        setUsers([])
+        setLoading(true);
+        const response = await fetch('/api/admin/users');
+        if (!response.ok) {
+          throw new Error("Impossible de charger les utilisateurs.");
+        }
+        const data: BasicUtilisateur[] = await response.json();
+        setUsers(data);
+      } catch (error) {
+        setError((error as Error).message);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
     fetchUsers()
   }, [router])
 
-  // MODIFICATION: Utilisation de id_user
-  const handleToggleStatus = async (id_user: number) => { 
-    // ZONE DE LIAISON BDD: Mettre à jour le statut de l'utilisateur
-    // PATCH /api/admin/users/{id_user}/status
-    // (Nécessite un champ 'status' ou 'is_blocked' dans la BDD)
+  // --- MODIFICATION: Handlers connectés à l'API ---
 
-    setUsers(users.map((u) => (u.id_user === id_user ? { ...u, status: u.status === "active" ? "blocked" : "active" } : u)))
+  const handleEditUser = (userToEdit: BasicUtilisateur) => {
+    // Ouvre le modal et pré-remplit le formulaire
+    setSelectedUser(userToEdit)
+    setFormData({
+      prenom: userToEdit.prenom,
+      nom: userToEdit.nom,
+      email: userToEdit.email,
+      admin: userToEdit.admin,
+    })
+    setIsModalOpen(true)
+    setError("") // Réinitialise les erreurs
   }
 
-  const activeUsers = users.filter((u) => u.status === "active").length
-  const blockedUsers = users.filter((u) => u.status === "blocked").length
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault(); // Empêche le rechargement de la page
+    if (!selectedUser) return;
+
+    // ZONE DE LIAISON BDD: Appel à l'API PUT
+    try {
+      const response = await fetch(`/api/admin/users/${selectedUser.id_user}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData), // Envoie les données du formulaire
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Échec de la mise à jour");
+      }
+
+      // Met à jour l'état local
+      setUsers(users.map((u) => (u.id_user === selectedUser.id_user ? data.user : u)));
+      
+      // Ferme le modal
+      setIsModalOpen(false)
+      setSelectedUser(undefined)
+
+    } catch (err) {
+      setError((err as Error).message);
+      // Ne pas fermer le modal si erreur, pour que l'utilisateur puisse voir
+    }
+  }
+
+  const handleDeleteUser = async (id_user: number) => {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.")) {
+      return
+    }
+
+    // ZONE DE LIAISON BDD: Appel à l'API DELETE
+    try {
+      const response = await fetch(`/api/admin/users/${id_user}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Échec de la suppression");
+      }
+
+      // Met à jour l'état local
+      setUsers(users.filter((u) => u.id_user !== id_user))
+    
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
 
   if (!user || loading) return null
 
@@ -80,42 +156,7 @@ export default function AdminUsersPage() {
             <p className="text-muted-foreground mt-1">{users.length} utilisateurs au total</p>
           </div>
 
-          {/* Stats (Aucun changement nécessaire) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {/* ... (Contenu inchangé) ... */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total</CardTitle>
-                <Users className="w-4 h-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-primary">{users.length}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Actifs</CardTitle>
-                <ToggleRight className="w-4 h-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-green-600">{activeUsers}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Bloqués</CardTitle>
-                <ToggleLeft className="w-4 h-4 text-red-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-red-600">{blockedUsers}</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Users Table */}
-          <Card>
+          <Card className="mt-8">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="w-5 h-5" />
@@ -123,7 +164,9 @@ export default function AdminUsersPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {users.length === 0 ? (
+              {loading ? (
+                 <p className="text-center py-12 text-muted-foreground">Chargement...</p>
+              ) : users.length === 0 ? (
                 <div className="text-center py-12">
                   <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
                   <p className="text-muted-foreground">Aucun utilisateur</p>
@@ -132,61 +175,42 @@ export default function AdminUsersPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-border">
-                        {/* MODIFICATION: Utilisation de "Prénom / Nom" */}
-                        <th className="text-left py-3 px-4 font-semibold text-foreground">Prénom / Nom</th> 
-                        <th className="text-left py-3 px-4 font-semibold text-foreground">Email</th>
-                        <th className="text-left py-3 px-4 font-semibold text-foreground">Rejoints</th>
-                        <th className="text-left py-3 px-4 font-semibold text-foreground">Commandes</th>
-                        <th className="text-left py-3 px-4 font-semibold text-foreground">Statut</th>
-                        <th className="text-right py-3 px-4 font-semibold text-foreground">Actions</th>
-                      </tr>
+                      {/* ... (En-têtes de table) ... */}
                     </thead>
                     <tbody>
-                      {/* ZONE DE LIAISON BDD: Itération sur la liste des utilisateurs */}
                       {users.map((user) => (
-                        // MODIFICATION: Utilisation de id_user
-                        <tr key={user.id_user} className="border-b border-border hover:bg-muted/50 transition"> 
-                          {/* MODIFICATION: Utilisation de prenom et nom */}
-                          <td className="py-3 px-4 text-foreground font-medium">{user.prenom} {user.nom}</td> 
+                        <tr key={user.id_user} className="border-b border-border hover:bg-muted/50 transition">
+                          <td className="py-3 px-4 text-foreground font-medium">{user.prenom} {user.nom}</td>
                           <td className="py-3 px-4 text-muted-foreground">{user.email}</td>
-                          <td className="py-3 px-4 text-muted-foreground text-sm">
-                            {/* Utilisation du champ 'joinedDate' étendu */}
-                            {new Date(user.joinedDate).toLocaleDateString("fr-FR")} 
-                          </td>
-                          {/* Utilisation du champ 'orders' étendu */}
-                          <td className="py-3 px-4 text-foreground font-medium">{user.orders}</td> 
                           <td className="py-3 px-4">
-                            {/* Utilisation du champ 'status' étendu */}
-                            <span 
+                            <span
                               className={`px-3 py-1 rounded text-sm font-medium ${
-                                user.status === "active"
-                                  ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
-                                  : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                                user.admin === 1
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-muted text-muted-foreground"
                               }`}
                             >
-                              {user.status === "active" ? "Actif" : "Bloqué"}
+                              {user.admin === 1 ? "Admin" : "Client"}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-3 px-4 text-right flex gap-2 justify-end">
                             <Button
                               size="sm"
-                              variant={user.status === "active" ? "destructive" : "default"}
-                              // MODIFICATION: Utilisation de id_user
-                              onClick={() => handleToggleStatus(user.id_user)} 
+                              variant="outline"
+                              onClick={() => handleEditUser(user)}
                               className="gap-1"
                             >
-                              {user.status === "active" ? (
-                                <>
-                                  <ToggleLeft className="w-4 h-4" />
-                                  Bloquer
-                                </>
-                              ) : (
-                                <>
-                                  <ToggleRight className="w-4 h-4" />
-                                  Débloquer
-                                </>
-                              )}
+                              <Edit className="w-4 h-4" />
+                              Modifier
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteUser(user.id_user)}
+                              className="gap-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Supprimer
                             </Button>
                           </td>
                         </tr>
@@ -199,6 +223,68 @@ export default function AdminUsersPage() {
           </Card>
         </div>
       </main>
+
+      {/* --- MODIFICATION: Ajout du Modal d'édition --- */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Modifier l'utilisateur</DialogTitle>
+          </DialogHeader>
+          {/* Afficher l'erreur API dans le modal */}
+          {error && (
+             <p className="text-sm text-destructive bg-destructive/10 p-2 rounded">{error}</p>
+          )}
+          <form onSubmit={handleSaveUser}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="prenom" className="text-right">Prénom</Label>
+                <Input
+                  id="prenom"
+                  value={formData.prenom}
+                  onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="nom" className="text-right">Nom</Label>
+                <Input
+                  id="nom"
+                  value={formData.nom}
+                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="email" className="text-right">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="flex items-center gap-2 justify-end col-span-4">
+                <Checkbox
+                  id="admin"
+                  checked={formData.admin === 1}
+                  onCheckedChange={(checked) => setFormData({ ...formData, admin: checked ? 1 : 0 })}
+                />
+                <Label htmlFor="admin" className="cursor-pointer">
+                  Est Administrateur
+                </Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">Annuler</Button>
+              </DialogClose>
+              <Button type="submit">Sauvegarder</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {/* --- FIN DU MODAL --- */}
     </div>
   )
 }
