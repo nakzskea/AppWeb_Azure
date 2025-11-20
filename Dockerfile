@@ -1,17 +1,17 @@
 # Étape 1: Le "Builder" - Construit l'application
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Copier package.json et installer les dépendances
 COPY package*.json ./
-RUN npm install
+RUN npm ci --legacy-peer-deps
 
 # Copier le reste du code et construire l'application
 COPY . .
 RUN npm run build
 
 # Étape 2: Le "Runner" - Fait tourner l'application finale
-FROM node:18-alpine
+FROM node:22-alpine
 WORKDIR /app
 
 # Copier uniquement ce qui est nécessaire depuis le builder

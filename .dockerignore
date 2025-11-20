@@ -1,0 +1,12 @@
+# Ignorer les dépendances (le conteneur les installera)
+node_modules
+
+# Ignorer le build précédent de Next.js
+.next
+
+# Fichiers de log
+*.log
+
+# Fichiers d'environnement (ne jamais les mettre dans une image)
+.env.local
+.env.*.local
